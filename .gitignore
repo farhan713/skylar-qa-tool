@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.env
+.env.local
+
+# Per-job runtime output (tool generates this — never check in)
+runs/
+
+# Legacy artefacts from the initial 55-query Skylar IQ run
+reports/results/
+reports/all_results.json
+reports/REPORT.html
+reports/REPORT.md
+reports/SUMMARY.json
+reports/run.log
+network_logs/
+screenshots/q*.png
+screenshots/debug_*
+data/test_data.json
+
+# IDE / OS noise
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Smoke-test artefacts
+tests/__pycache__/
+app/__pycache__/
+
+# Claude Code local settings (may contain history with credentials)
+.claude/
+
+# Server log
+/tmp/skylar_server.log

@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Job {{ job_id }} — Skylar IQ QA Tool</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header>
+  <h1><a href="{{ url_for('index') }}">← Skylar IQ QA Tool</a></h1>
+  <p class="subtitle">Job <code>{{ job_id }}</code></p>
+</header>
+
+<main class="grid">
+  <section class="card">
+    <h2>Configuration</h2>
+    <table class="kv">
+      <tr><th>Login URL</th><td><code>{{ meta.login_url }}</code></td></tr>
+      <tr><th>Username</th><td>{{ meta.username }}</td></tr>
+      <tr><th>Machine ID</th><td>{{ meta.machine_id }}</td></tr>
+      <tr><th>SQL Agent path</th><td><code>{{ meta.sql_agent_path }}</code></td></tr>
+      <tr><th>Questions</th><td>{{ meta.question_count }}</td></tr>
+      <tr><th>Status</th><td><span id="status-badge" class="badge {{ meta.status|upper }}">{{ meta.status }}</span></td></tr>
+      <tr><th>Created</th><td><span class="meta">{{ meta.created_at }}</span></td></tr>
+    </table>
+  </section>
+
+  <section class="card">
+    <h2>Live progress</h2>
+    <div class="counts">
+      <span class="count" id="cnt-PASS">PASS <b>0</b></span>
+      <span class="count" id="cnt-PARTIAL">PARTIAL <b>0</b></span>
+      <span class="count" id="cnt-FAIL">FAIL <b>0</b></span>
+      <span class="count" id="cnt-TIMEOUT">TIMEOUT <b>0</b></span>
+      <span class="count" id="cnt-total">Done <b>0</b> / <span id="cnt-total-of">{{ meta.question_count }}</span></span>
+    </div>
+    <progress id="progress" max="{{ meta.question_count or 100 }}" value="0"></progress>
+    <h3>Last 5 queries</h3>
+    <table class="last5">
+      <thead><tr><th>q</th><th>NL question</th><th>Status</th><th>Duration</th></tr></thead>
+      <tbody id="last5-body"></tbody>
+    </table>
+    <h3>Event log</h3>
+    <pre id="events" class="events"></pre>
+    <p>
+      <a id="report-link" class="btn-primary" href="{{ url_for('job_report', job_id=job_id) }}" target="_blank" style="display:none">Open final report ↗</a>
+    </p>
+  </section>
+</main>
+
+<script>
+const jobId = {{ job_id|tojson }};
+const eventsEl = document.getElementById('events');
+const progressEl = document.getElementById('progress');
+const reportLink = document.getElementById('report-link');
+const statusBadge = document.getElementById('status-badge');
+
+function refreshCounts() {
+  fetch(`/jobs/${jobId}/status`).then(r => r.json()).then(s => {
+    document.getElementById('cnt-PASS').querySelector('b').textContent = s.counts.PASS || 0;
+    document.getElementById('cnt-PARTIAL').querySelector('b').textContent = s.counts.PARTIAL || 0;
+    document.getElementById('cnt-FAIL').querySelector('b').textContent = s.counts.FAIL || 0;
+    document.getElementById('cnt-TIMEOUT').querySelector('b').textContent = s.counts.TIMEOUT || 0;
+    document.getElementById('cnt-total').querySelector('b').textContent = s.completed || 0;
+    if (s.total) {
+      progressEl.max = s.total;
+      progressEl.value = s.completed || 0;
+      document.getElementById('cnt-total-of').textContent = s.total;
+    }
+    if (s.status) {
+      statusBadge.textContent = s.status;
+      statusBadge.className = 'badge ' + s.status.toUpperCase();
+    }
+    if (s.status === 'done' || s.status === 'failed') {
+      reportLink.style.display = 'inline-block';
+    }
+    const tbody = document.getElementById('last5-body');
+    tbody.innerHTML = '';
+    (s.last5 || []).forEach(r => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>q${String(r.id).padStart(2,'0')}</td><td>${r.nl_query}</td><td><span class="badge ${r.status}">${r.status}</span></td><td>${r.duration_ms||'-'} ms</td>`;
+      tbody.appendChild(tr);
+    });
+  }).catch(()=>{});
+}
+refreshCounts();
+setInterval(refreshCounts, 3000);
+
+const es = new EventSource(`/jobs/${jobId}/events`);
+es.onmessage = (e) => {
+  if (e.data === '[__end__]') { es.close(); refreshCounts(); return; }
+  eventsEl.textContent += e.data + '\n';
+  eventsEl.scrollTop = eventsEl.scrollHeight;
+  if (/^\[q\d+\] (PASS|PARTIAL|FAIL|TIMEOUT)/.test(e.data)) refreshCounts();
+};
+es.onerror = () => { /* Reconnects automatically */ };
+</script>
+</body>
+</html>
